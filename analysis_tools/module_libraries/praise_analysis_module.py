@@ -177,58 +177,81 @@ class praise_quantifier():
 # n_receivers: Right side. Praise receivers. n largest ones + rest (others)
 
 
+# def prepare_praise_flow(dataframe_in, n_senders, n_receivers):
+#     reference_df = dataframe_in[['FROM', 'TO', 'AVG SCORE']].copy()
+#     reference_df.reset_index(inplace=True, drop=True)
+#     reference_df.dropna(subset=['FROM', 'TO', 'AVG SCORE'], inplace=True)
+#     reference_df.reset_index(inplace=True, drop=True)
+
+#     # Left side. Praise senders. X largest ones + rest (others). (-1 because of zero-counting)
+#     n1 = n_senders - 1
+#     # Right side. Praise receivers. Y larget one + rest (others) (-1 because of zero-counting)
+#     n2 = n_receivers - 1
+
+#     df_from = reference_df.groupby(['FROM']).sum().copy()
+#     df_from.reset_index(inplace=True, drop=False)
+#     try:
+#         min_from = df_from['AVG SCORE'].sort_values(ascending=False).unique()[n1]
+#     except:
+#         #for the case in which the number of senders is lower than the min specifed
+#         min_from = df_from['AVG SCORE'].sort_values(ascending=False).unique()[-1]
+#     df_from2 = df_from.copy()
+#     df_from2.loc[df_from2['AVG SCORE'] < min_from, 'FROM'] = 'Rest from 1'
+
+#     df_to = reference_df.groupby(['TO']).sum().copy()
+#     df_to.reset_index(inplace=True, drop=False)
+#     try:
+#         min_to = df_to['AVG SCORE'].sort_values(ascending=False).unique()[n2]
+#     except:
+#         #for the case in which the number of receivers is lower than the min specifed
+#         min_to = df_to['AVG SCORE'].sort_values(ascending=False).unique()[-1]
+#     df_to2 = df_to.copy()
+#     df_to2.loc[df_to2['AVG SCORE'] < min_to, 'TO'] = 'Rest to 1'
+
+#     df3 = reference_df.copy()
+#     i = 0
+
+#     length_data = df3.shape[0]
+
+#     while (i < length_data):
+#         if (not(df3.at[i, 'FROM'] in df_from2['FROM'].unique())):
+#             df3.at[i, 'FROM'] = 'REST FROM'
+#         if (not(df3.at[i, 'TO'] in df_to2['TO'].unique())):
+#             df3.at[i, 'TO'] = 'REST TO'
+
+#         i = i+1
+
+#     df4 = df3.copy()
+
+#     df4 = df4.groupby(['FROM', 'TO']).sum().copy()
+
+#     df4.reset_index(inplace=True, drop=False)
+#     df4['TO'] = df4['TO']+' '
+
+#     return df4
+
 def prepare_praise_flow(dataframe_in, n_senders, n_receivers):
-    reference_df = dataframe_in[['FROM', 'TO', 'AVG SCORE']].copy()
-    reference_df.reset_index(inplace=True, drop=True)
-    reference_df.dropna(subset=['FROM', 'TO', 'AVG SCORE'], inplace=True)
-    reference_df.reset_index(inplace=True, drop=True)
+    # Select required columns and drop rows with missing values
+    reference_df = dataframe_in[['FROM', 'TO', 'AVG SCORE']].dropna().reset_index(drop=True)
 
-    # Left side. Praise senders. X largest ones + rest (others). (-1 because of zero-counting)
-    n1 = n_senders - 1
-    # Right side. Praise receivers. Y larget one + rest (others) (-1 because of zero-counting)
-    n2 = n_receivers - 1
+    # Select top n_senders senders by combined AVG SCORE and rename the rest as 'Rest from 1'
+    sender_scores = reference_df.groupby('FROM')['AVG SCORE'].sum()
+    top_senders = sender_scores.nlargest(n_senders).index
+    reference_df.loc[~reference_df['FROM'].isin(top_senders), 'FROM'] = 'Rest from 1'
 
-    df_from = reference_df.groupby(['FROM']).sum().copy()
-    df_from.reset_index(inplace=True, drop=False)
-    try:
-        min_from = df_from['AVG SCORE'].sort_values(ascending=False).unique()[n1]
-    except:
-        #for the case in which the number of senders is lower than the min specifed
-        min_from = df_from['AVG SCORE'].sort_values(ascending=False).unique()[-1]
-    df_from2 = df_from.copy()
-    df_from2.loc[df_from2['AVG SCORE'] < min_from, 'FROM'] = 'Rest from 1'
+    # Select top n_receivers receivers by combined AVG SCORE and rename the rest as 'Rest to 1'
+    receiver_scores = reference_df.groupby('TO')['AVG SCORE'].sum()
+    top_receivers = receiver_scores.nlargest(n_receivers).index
+    reference_df.loc[~reference_df['TO'].isin(top_receivers), 'TO'] = 'Rest to 1'
 
-    df_to = reference_df.groupby(['TO']).sum().copy()
-    df_to.reset_index(inplace=True, drop=False)
-    try:
-        min_to = df_to['AVG SCORE'].sort_values(ascending=False).unique()[n2]
-    except:
-        #for the case in which the number of receivers is lower than the min specifed
-        min_to = df_to['AVG SCORE'].sort_values(ascending=False).unique()[-1]
-    df_to2 = df_to.copy()
-    df_to2.loc[df_to2['AVG SCORE'] < min_to, 'TO'] = 'Rest to 1'
+    # Group by sender and receiver, and sum up the scores
+    df4 = reference_df.groupby(['FROM', 'TO']).sum().reset_index()
 
-    df3 = reference_df.copy()
-    i = 0
-
-    length_data = df3.shape[0]
-
-    while (i < length_data):
-        if (not(df3.at[i, 'FROM'] in df_from2['FROM'].unique())):
-            df3.at[i, 'FROM'] = 'REST FROM'
-        if (not(df3.at[i, 'TO'] in df_to2['TO'].unique())):
-            df3.at[i, 'TO'] = 'REST TO'
-
-        i = i+1
-
-    df4 = df3.copy()
-
-    df4 = df4.groupby(['FROM', 'TO']).sum().copy()
-
-    df4.reset_index(inplace=True, drop=False)
-    df4['TO'] = df4['TO']+' '
+    # Append a space to the 'TO' column
+    df4['TO'] = df4['TO'] + ' '
 
     return df4
+
 
 
 def noShow(a, b):
